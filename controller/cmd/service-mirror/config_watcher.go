@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	consts "github.com/linkerd/linkerd2/pkg/k8s"
+	sm "github.com/linkerd/linkerd2/pkg/servicemirror"
 )
 
 // RemoteClusterConfigWatcher watches for secrets of type MirrorSecretType
@@ -105,7 +106,7 @@ func (rcw *RemoteClusterConfigWatcher) Stop() {
 }
 
 func (rcw *RemoteClusterConfigWatcher) registerRemoteCluster(secret *corev1.Secret) error {
-	config, name, domain, err := parseRemoteClusterSecret(secret)
+	config, name, domain, err := sm.ExtractRemoteClusterAPICredentials(secret)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (rcw *RemoteClusterConfigWatcher) registerRemoteCluster(secret *corev1.Secr
 }
 
 func (rcw *RemoteClusterConfigWatcher) unregisterRemoteCluster(secret *corev1.Secret, cleanState bool) error {
-	_, name, _, err := parseRemoteClusterSecret(secret)
+	_, name, _, err := sm.ExtractRemoteClusterAPICredentials(secret)
 	if err != nil {
 		return err
 	}
@@ -148,20 +149,4 @@ func (rcw *RemoteClusterConfigWatcher) unregisterRemoteCluster(secret *corev1.Se
 	delete(rcw.clusterWatchers, name)
 
 	return nil
-}
-
-func parseRemoteClusterSecret(secret *corev1.Secret) ([]byte, string, string, error) {
-	clusterName, hasClusterName := secret.Annotations[consts.RemoteClusterNameLabel]
-	config, hasConfig := secret.Data[consts.ConfigKeyName]
-	domain, hasDomain := secret.Annotations[consts.RemoteClusterDomainAnnotation]
-	if !hasClusterName {
-		return nil, "", "", fmt.Errorf("secret of type %s should contain key %s", consts.MirrorSecretType, consts.ConfigKeyName)
-	}
-	if !hasConfig {
-		return nil, "", "", fmt.Errorf("secret should contain remote cluster name as annotation %s", consts.RemoteClusterNameLabel)
-	}
-	if !hasDomain {
-		return nil, "", "", fmt.Errorf("secret should contain remote cluster domain as annotation %s", consts.RemoteClusterDomainAnnotation)
-	}
-	return config, clusterName, domain, nil
 }
